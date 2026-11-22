@@ -1,26 +1,24 @@
-// Mengimpor fungsi pengujian bawaan Bun runtime
-import { describe, expect, it } from "bun:test";
-// Mengimpor Eden Treaty: klien HTTP yang membaca tipe TypeScript langsung dari aplikasi Elysia
-import { treaty } from "@elysiajs/eden";
-import { app } from "../src/index";
+import { describe, expect, it } from "bun:test"; // Fungsi bawaan Bun untuk menulis unit/integration test
+import { treaty } from "@elysiajs/eden"; // Klien HTTP type-safe dari Eden Treaty untuk memanggil API
+import { app } from "../src/index"; // Mengimpor instance `app` agar bisa diuji langsung
 
-// Membuat klien API yang type-safe berdasarkan definisi `typeof app`
+// Membuat klien Eden Treaty berdasarkan tipe `typeof app`
 const client = treaty<typeof app>("http://localhost:3000");
 
-// `describe`: mengelompokkan sekumpulan skenario pengujian dalam satu suite
+// `describe`: membungkus beberapa test case yang saling berkaitan
 describe("Toolbox API", () => {
-  // `it`: mendefinisikan satu kasus pengujian (test case)
+  // `it`: satu skenario pengujian spesifik
   it("1. GET / returns Toolbox API and lifecycle headers", async () => {
-    // `app.handle(...)`: mensimulasikan HTTP request langsung ke Elysia di memori (tanpa perlu server eksternal)
+    // `app.handle(...)`: mengirim Request simulasi ke aplikasi tanpa perlu membuka port baru
     const res = await app.handle(new Request("http://localhost:3000/"));
-    expect(res.status).toBe(200); // Memastikan status HTTP 200 OK
-    expect(res.headers.get("X-Request-Id")).toBeTruthy(); // Memastikan header dari onAfterHandle ada
-    expect(res.headers.get("X-Response-Time")).toMatch(/ms$/); // Memastikan format diakhiri "ms"
-    expect(await res.json()).toEqual({ message: "Toolbox API" }); // Memastikan isi JSON sesuai
+    expect(res.status).toBe(200); // Memastikan status HTTP 200
+    expect(res.headers.get("X-Request-Id")).toBeTruthy(); // Memastikan header dari `onAfterHandle` terpasang
+    expect(res.headers.get("X-Response-Time")).toMatch(/ms$/); // Memastikan format waktu respons berakhiran "ms"
+    expect(await res.json()).toEqual({ message: "Toolbox API" }); // Memastikan body JSON sesuai
   });
 
   it("2. GET /greet/:name supports en and id via Eden Treaty", async () => {
-    // Menggunakan Eden Treaty: path `/greet/:name` dipanggil layaknya fungsi TypeScript biasa
+    // Memanggil endpoint `/greet/:name` dengan autocomplete & type-checking dari Eden Treaty
     const enRes = await client.greet({ name: "Manu" }).get({ query: { lang: "en" } });
     expect(enRes.status).toBe(200);
     expect(enRes.data).toBe("Hello, Manu");
@@ -31,7 +29,7 @@ describe("Toolbox API", () => {
   });
 
   it("3. POST /bmi calculates BMI and returns 422 on invalid input", async () => {
-    // Skenario input valid
+    // Uji input valid (weight & height > 0)
     const valid = await app.handle(
       new Request("http://localhost:3000/bmi", {
         method: "POST",
@@ -42,7 +40,7 @@ describe("Toolbox API", () => {
     expect(valid.status).toBe(200);
     expect(await valid.json()).toEqual({ bmi: 22.86, category: "Normal" });
 
-    // Skenario input tidak valid (melanggar exclusiveMinimum: 0 -> harus 422)
+    // Uji input tidak valid (0 dan -1 melanggar `exclusiveMinimum: 0`) -> harus menghasilkan 422
     const invalid = await app.handle(
       new Request("http://localhost:3000/bmi", {
         method: "POST",
@@ -54,6 +52,7 @@ describe("Toolbox API", () => {
   });
 
   it("4. GET /convert/temperature converts units and validates enum", async () => {
+    // Uji konversi 30°C ke Fahrenheit (harus 86°F)
     const res = await app.handle(
       new Request("http://localhost:3000/convert/temperature?value=30&from=c&to=f")
     );
@@ -65,7 +64,7 @@ describe("Toolbox API", () => {
       result: 86,
     });
 
-    // Menguji satuan invalid ("x") yang tidak ada di `tempUnitSchema`
+    // Uji satuan tidak valid ("x") -> harus ditolak dengan status 422
     const badUnit = await app.handle(
       new Request("http://localhost:3000/convert/temperature?value=30&from=x&to=f")
     );
@@ -73,7 +72,7 @@ describe("Toolbox API", () => {
   });
 
   it("5. POST /text/count, /text/reverse, and /text/slug work via plugin", async () => {
-    // Menguji endpoint dari `textPlugin`
+    // Uji endpoint `/text/count` dari plugin
     const countRes = await app.handle(
       new Request("http://localhost:3000/text/count", {
         method: "POST",
@@ -88,6 +87,7 @@ describe("Toolbox API", () => {
       vowels: 3,
     });
 
+    // Uji endpoint `/text/reverse` dari plugin
     const revRes = await app.handle(
       new Request("http://localhost:3000/text/reverse", {
         method: "POST",
@@ -97,6 +97,7 @@ describe("Toolbox API", () => {
     );
     expect(await revRes.json()).toEqual({ reversed: "cba" });
 
+    // Uji endpoint `/text/slug` dari plugin
     const slugRes = await app.handle(
       new Request("http://localhost:3000/text/slug", {
         method: "POST",
@@ -108,17 +109,17 @@ describe("Toolbox API", () => {
   });
 
   it("6. GET /secure/time enforces x-api-key header (401 vs 200)", async () => {
-    // Tanpa header `x-api-key` -> ditolak guard dengan status 401
+    // Tanpa header `x-api-key` -> harus mengembalikan 401
     const unauthorized = await app.handle(
       new Request("http://localhost:3000/secure/time")
     );
     expect(unauthorized.status).toBe(401);
     expect(await unauthorized.json()).toEqual({
-      error: "Unauthorized: invalid or missing x-api-key",
+      error: "Unauthorized: missing or invalid x-api-key",
       code: "UNAUTHORIZED",
     });
 
-    // Dengan header `x-api-key: secret123` -> lolos guard dengan status 200
+    // Dengan header `x-api-key: secret123` -> harus mengembalikan 200 dan `serverTime`
     const authorized = await app.handle(
       new Request("http://localhost:3000/secure/time", {
         headers: { "x-api-key": "secret123" },
@@ -130,7 +131,7 @@ describe("Toolbox API", () => {
   });
 
   it("7. GET /math/divide throws DivisionByZeroError in unified error format", async () => {
-    // Pembagian dengan 0 memicu DivisionByZeroError -> ditangkap onError -> status 400
+    // Membagi dengan 0 (`b=0`) -> harus mengembalikan status 400 dan format `{ error, code }`
     const res = await app.handle(
       new Request("http://localhost:3000/math/divide?a=10&b=0")
     );

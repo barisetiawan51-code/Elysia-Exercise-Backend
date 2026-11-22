@@ -33,7 +33,7 @@ export function formatErrorResponse(error: unknown, codeOverride?: string) {
     };
   }
 
-  // 3. Fallback jika yang dilempar (throw) bukan objek Error (misal string atau angka biasa)
+  // 3. Fallback jika yang dilempar (throw) itu bukan objek Error (misal string atau angka biasa)
   return {
     error: "An unexpected error occurred",
     code: codeOverride ?? "UNKNOWN_ERROR",

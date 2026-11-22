@@ -1,62 +1,61 @@
-import { Elysia, t } from "elysia"; // Mengimpor framework Elysia dan 't' (TypeBox untuk validasi skema)
+import { Elysia, t } from "elysia"; // Mengimpor Elysia dan 't' (TypeBox) untuk membuat aturan validasi tipe data
 
-// Mendefinisikan aturan bentuk request body: wajib objek dengan properti 'text' bertipe string
+// Skema validasi body: memastikan request JSON berbentuk objek dengan field `text` bertipe string
 const textBodySchema = t.Object({
   text: t.String(),
 });
 
-// Helper 1: Menghitung jumlah huruf vokal
+// Helper 1: Menghitung jumlah huruf vokal (a, i, u, e, o) pada teks
 function countVowels(input: string): number {
-  // `.match(/[aeiou]/gi)`: mencari semua huruf vokal; 'g' = global (semua), 'i' = case-insensitive
+  // `.match(/[aeiou]/gi)`: mencari semua huruf vokal; 'g' = semua kecocokan, 'i' = tidak peduli huruf besar/kecil
   const matches = input.match(/[aeiou]/gi);
-  // Jika ditemukan kembalikan panjang array-nya, jika tidak (null) kembalikan 0
+  // Jika ada kecocokan kembalikan jumlahnya, jika tidak ada (null) kembalikan 0
   return matches ? matches.length : 0;
 }
 
-// Helper 2: Menghitung jumlah kata
+// Helper 2: Menghitung jumlah kata dalam teks
 function countWords(input: string): number {
-  const trimmed = input.trim(); // Hapus spasi berlebih di awal dan akhir teks
-  if (!trimmed) return 0; // Jika string kosong, jumlah kata = 0
-  // `.split(/\s+/)`: memecah teks menjadi array berdasarkan satu atau lebih spasi/enter/tab
+  const trimmed = input.trim(); // Menghapus spasi kosong di awal dan akhir teks
+  if (!trimmed) return 0; // Jika setelah di-trim teks kosong, berarti 0 kata
+  // `.split(/\s+/)`: memotong teks menjadi array berdasarkan 1 atau lebih spasi/tab/baris baru
   return trimmed.split(/\s+/).length;
 }
 
-// Helper 3: Mengubah kalimat menjadi format URL-friendly (slug)
+// Helper 3: Mengubah teks menjadi format slug URL (huruf kecil & dipisah tanda '-')
 function toSlug(input: string): string {
   return input
-    .toLowerCase()                  // Ubah semua ke huruf kecil
-    .trim()                         // Hapus spasi di awal & akhir
-    .replace(/[^a-z0-9\s-]/g, "")   // Hapus karakter selain huruf, angka, spasi, dan tanda '-'
-    .replace(/\s+/g, "-")           // Ubah satu/lebih spasi menjadi satu tanda '-'
-    .replace(/-+/g, "-")            // Gabungkan tanda '-' yang berurutan (misal "---" -> "-")
-    .replace(/^-|-$/g, "");         // Hapus tanda '-' jika muncul di paling awal atau paling akhir
+    .toLowerCase() // Mengubah semua huruf menjadi lowercase
+    .trim() // Menghapus spasi di ujung kiri dan kanan
+    .replace(/[^a-z0-9\s-]/g, "") // Menghapus karakter selain huruf a-z, angka 0-9, spasi, dan '-'
+    .replace(/\s+/g, "-") // Mengubah spasi (satu atau lebih) menjadi satu tanda '-'
+    .replace(/-+/g, "-") // Menggabungkan tanda '-' beruntun (misal "--") menjadi satu '-'
+    .replace(/^-|-$/g, ""); // Menghapus tanda '-' jika berada di awal atau akhir hasil
 }
 
-// Membuat instance Elysia terpisah sebagai Plugin
-// `prefix: "/text"`: otomatis menambahkan awalan "/text" ke semua route di dalamnya
-// `name: "text-plugin"`: memberi identitas nama unik pada plugin
+// Membuat instance Elysia terpisah sebagai plugin dengan prefix "/text"
+// Semua route di dalam plugin ini otomatis diawali "/text" (misal "/count" -> "/text/count")
 export const textPlugin = new Elysia({ prefix: "/text", name: "text-plugin" })
-  // Endpoint: POST /text/count
+  // Endpoint POST /text/count: menghitung karakter, kata, dan vokal
   .post(
     "/count",
-    // Destructuring `{ body }`: mengambil isi request body yang sudah tervalidasi
+    // `{ body }`: mengambil data JSON yang sudah lolos validasi `textBodySchema`
     ({ body }) => ({
-      characters: body.text.length,
-      words: countWords(body.text),
-      vowels: countVowels(body.text),
+      characters: body.text.length, // Total panjang karakter termasuk spasi
+      words: countWords(body.text), // Total kata
+      vowels: countVowels(body.text), // Total huruf vokal
     }),
-    { body: textBodySchema } // Menerapkan validasi skema pada body
+    { body: textBodySchema } // Menerapkan validasi body ke route ini
   )
-  // Endpoint: POST /text/reverse
+  // Endpoint POST /text/reverse: membalik urutan karakter teks
   .post(
     "/reverse",
     ({ body }) => ({
-      // `[...body.text]`: memecah string jadi array karakter (aman untuk emoji/unicode) lalu dibalik
+      // `[...body.text]`: memecah string menjadi array karakter (aman untuk karakter Unicode/emoji), lalu dibalik
       reversed: [...body.text].reverse().join(""),
     }),
     { body: textBodySchema }
   )
-  // Endpoint: POST /text/slug
+  // Endpoint POST /text/slug: mengubah teks menjadi slug
   .post(
     "/slug",
     ({ body }) => ({
