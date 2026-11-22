@@ -1,0 +1,40 @@
+Goal: Build a small API that stores nothing. No database, no arrays or variables that keep data between requests. Every response is worked out from the request itself.
+1. Basic routing
+• GET / returns { message: "Toolbox API" }
+• GET /greet/:name?lang=en|id returns "Hello, Manu" or "Halo, Manu"
+Tests: path params, query, simple responses
+2. Validation with t
+• POST /bmi takes { weight: number, height: number } (both must be more than 0) and returns the BMI and its category
+• GET /convert/temperature?value=30&from=c&to=f where from and to can only be c, f or k
+Tests: t.Object, t.Number, t.Union / t.Literal, and the automatic 422 error when input is wrong
+3. Groups and plugins
+• Put the text routes in a separate file as a plugin and add it with .use()
+• Group them under /text:
+    ◦ POST /text/count returns how many characters, words and vowels the text has
+    ◦ POST /text/reverse returns the text reversed
+    ◦ POST /text/slug turns "Hello World!" into "hello-world"
+Tests: new Elysia({ prefix }), .group(), .use()
+4. Lifecycle hooks
+• Use derive to give each request a requestId and a start time
+• Use onAfterHandle to add X-Request-Id and X-Response-Time headers to every response
+• Use onRequest to log the method and URL
+Tests: derive, the lifecycle order, setting headers
+5. Guard
+• Under /secure/*, require the header x-api-key: secret123. Without it, return 401.
+• GET /secure/time returns the server time
+Tests: .guard(), beforeHandle, header validation
+6. Error handling
+• Make a custom DivisionByZeroError
+• GET /math/divide?a=10&b=0 throws it
+• Use onError so every error comes back in one format: { error: string, code: string }
+Tests: error() / status(), custom errors, onError
+7. Docs and tests
+• Add the OpenAPI plugin and check that /openapi shows every route
+• Write bun:test tests for at least 5 routes, using app.handle(new Request(...)) or Eden Treaty
+Bonus
+• WS /ws/echo: a WebSocket that sends back each message in uppercase
+• Use Eden Treaty to call the API with full types
+What to submit
+• The source code, with the plugin in its own file
+• Passing tests (bun test)
+• A screenshot of the OpenAPI page
